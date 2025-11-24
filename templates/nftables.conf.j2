@@ -1,0 +1,70 @@
+# -----------------------------------------------------------------------------
+# Template: roles/firewall/templates/nftables.conf.j2
+#
+# Purpose:
+#   Generate an nftables ruleset using the role's `firewall.*` variables.
+#
+# Description:
+#   - Applies default policies from `firewall.inbound/outbound/forwarded`.
+#   - Inserts baseline rules for established/related traffic and loopback.
+#   - Iterates over `firewall.*.rules` to emit custom rules.
+#   - Supports optional rule keys: action, protocol, dport, sport, interface,
+#     out_interface, source, destination, ctstate, extra, family (ip/ip6).
+#
+# Output:
+#   - Complete nftables config for table `inet firewall`.
+# -----------------------------------------------------------------------------
+
+{% macro format_rule(rule) -%}
+{%- set parts = [] -%}
+{%- set family = rule.family | default('ip') -%}
+{%- if rule.interface is defined %}{% set _ = parts.append('iifname \"' ~ rule.interface ~ '\"') %}{% endif %}
+{%- if rule.out_interface is defined %}{% set _ = parts.append('oifname \"' ~ rule.out_interface ~ '\"') %}{% endif %}
+{%- if rule.protocol is defined %}{% set _ = parts.append(rule.protocol) %}{% endif %}
+{%- if rule.source is defined %}{% set _ = parts.append(family ~ ' saddr ' ~ rule.source) %}{% endif %}
+{%- if rule.destination is defined %}{% set _ = parts.append(family ~ ' daddr ' ~ rule.destination) %}{% endif %}
+{%- if rule.sport is defined %}{% set _ = parts.append('sport ' ~ rule.sport) %}{% endif %}
+{%- if rule.dport is defined %}{% set _ = parts.append('dport ' ~ rule.dport) %}{% endif %}
+{%- if rule.ctstate is defined %}{% set _ = parts.append('ct state {' ~ (rule.ctstate | lower | replace(' ', '')) ~ '}') %}{% endif %}
+{%- if rule.extra is defined %}{% set _ = parts.append(rule.extra) %}{% endif %}
+{%- set _ = parts.append((rule.action | default('accept')) | lower) -%}
+{{ parts | join(' ') }}
+{%- endmacro %}
+
+{% set inbound_policy = firewall.inbound.default_policy | default('drop') | lower %}
+{% set outbound_policy = firewall.outbound.default_policy | default('accept') | lower %}
+{% set forward_policy = firewall.forwarded.default_policy | default('drop') | lower %}
+
+table inet firewall {
+  chain input {
+    type filter hook input priority 0;
+    policy {{ inbound_policy }};
+
+    # Baseline allows
+    ct state established,related accept
+    iifname "lo" accept
+
+    # Inbound rules
+    {% for rule in firewall.inbound.rules | default([]) %}
+    {{ format_rule(rule) }}
+    {% endfor %}
+  }
+
+  chain forward {
+    type filter hook forward priority 0;
+    policy {{ forward_policy }};
+
+    {% for rule in firewall.forwarded.rules | default([]) %}
+    {{ format_rule(rule) }}
+    {% endfor %}
+  }
+
+  chain output {
+    type filter hook output priority 0;
+    policy {{ outbound_policy }};
+
+    {% for rule in firewall.outbound.rules | default([]) %}
+    {{ format_rule(rule) }}
+    {% endfor %}
+  }
+}

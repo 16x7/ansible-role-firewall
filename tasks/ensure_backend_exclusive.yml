@@ -1,0 +1,38 @@
+# -----------------------------------------------------------------------------
+# Task file: roles/firewall/tasks/ensure_backend_exclusive.yml
+#
+# Purpose:
+#   Ensure only the selected firewall backend is active by disabling the
+#   alternative service.
+#
+# Description:
+#   - When using `iptables2`, stop and disable the `nftables` service.
+#   - When using `nftables`, stop and disable `netfilter-persistent`
+#     (the service managing iptables-persistent rules).
+#
+# Requirements:
+#   - `firewall.backend` must be either `nftables` or `iptables2`.
+#
+# Output:
+#   - The unused firewall backend is stopped and disabled.
+# -----------------------------------------------------------------------------
+
+# -----------------------------------------------------------------------------
+# Step 1 – Disable nftables when iptables2 is selected
+# -----------------------------------------------------------------------------
+- name: Disable nftables service when backend is iptables2
+  ansible.builtin.systemd:
+    name: nftables
+    state: stopped
+    enabled: no
+  when: firewall.backend == 'iptables2'
+
+# -----------------------------------------------------------------------------
+# Step 2 – Disable iptables-persistent when nftables is selected
+# -----------------------------------------------------------------------------
+- name: Disable netfilter-persistent (iptables) when backend is nftables
+  ansible.builtin.systemd:
+    name: netfilter-persistent
+    state: stopped
+    enabled: no
+  when: firewall.backend == 'nftables'

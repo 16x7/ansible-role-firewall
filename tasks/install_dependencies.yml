@@ -1,0 +1,37 @@
+# -----------------------------------------------------------------------------
+# Task file: roles/firewall/tasks/install_dependencies.yml
+#
+# Purpose:
+#   Install the packages required by the selected firewall backend before any
+#   rule configuration takes place.
+#
+# Description:
+#   1. Validates that the requested backend is supported by the role defaults.
+#   2. Installs the package list mapped to that backend (e.g. nftables or
+#      iptables2) using the generic Ansible package module for portability.
+#
+# Requirements:
+#   - `firewall.backend` must match a key inside `firewall.backend_packages`.
+#
+# Output:
+#   - Selected firewall backend packages are present on the managed node.
+# -----------------------------------------------------------------------------
+
+# -----------------------------------------------------------------------------
+# Step 1 – Validate backend choice
+# -----------------------------------------------------------------------------
+- name: Validate firewall backend selection
+  ansible.builtin.fail:
+    msg: "Unsupported firewall backend '{{ firewall.backend }}'. Supported values: {{ firewall.backend_packages.keys() | list }}"
+  when: firewall.backend not in firewall.backend_packages
+
+# -----------------------------------------------------------------------------
+# Step 2 – Install backend packages
+# -----------------------------------------------------------------------------
+- name: Install packages for {{ firewall.backend }}
+  ansible.builtin.package:
+    name: "{{ firewall.backend_packages[firewall.backend] }}"
+    state: present
+  when:
+    - firewall.backend in firewall.backend_packages
+    - firewall.backend_packages[firewall.backend] | length > 0

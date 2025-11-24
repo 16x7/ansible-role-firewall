@@ -1,0 +1,11 @@
+- name: Install firewall backend dependencies
+  import_tasks: install_dependencies.yml
+
+- name: Ensure only the selected firewall backend is active
+  import_tasks: ensure_backend_exclusive.yml
+
+- name: Ensure selected firewall backend service is enabled and running
+  import_tasks: ensure_backend_active.yml
+
+- name: Generate firewall configuration
+  import_tasks: configure_firewall.yml

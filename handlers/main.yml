@@ -1,0 +1,31 @@
+# -----------------------------------------------------------------------------
+# Handlers file: roles/firewall/handlers/main.yml
+#
+# Purpose:
+#   Define handlers triggered by the firewall role to reload the active ruleset
+#   for the selected backend.
+# -----------------------------------------------------------------------------
+
+# -----------------------------------------------------------------------------
+# Reload nftables configuration from /etc/nftables.conf
+# This handler:
+#   - Validates the configuration first using `nft -c -f`
+#   - Then reloads the active ruleset via systemd
+# -----------------------------------------------------------------------------
+- name: Reload nftables ruleset
+  ansible.builtin.shell: |
+    set -e
+    nft -c -f /etc/nftables.conf
+    systemctl reload nftables
+  args:
+    executable: /bin/bash
+  register: nft_reload
+  changed_when: nft_reload.rc == 0
+
+# -----------------------------------------------------------------------------
+# Reload iptables-persistent (netfilter-persistent) rules
+# -----------------------------------------------------------------------------
+- name: Reload iptables ruleset
+  ansible.builtin.command: netfilter-persistent reload
+  register: ipt_reload
+  changed_when: ipt_reload.rc == 0

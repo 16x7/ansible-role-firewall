@@ -1,0 +1,36 @@
+
+# Default variables for firewall role
+
+# Define the default network interface dynamically
+default_interface: "{{ ansible_default_ipv4.interface }}"
+
+# Firewall Configuration
+firewall:
+  # Enable or disable the firewall
+  enabled: true
+  # Specify the firewall backend to use iptables2 or nftables
+  backend: nftables
+  # Packages required for each supported backend
+  backend_packages:
+    nftables:
+      - nftables
+    iptables2:
+      - iptables
+      - iptables-persistent
+
+  # Firewall rules
+  # Rules for incoming traffic
+  inbound:
+    default_policy: 'drop'
+    rules: []
+     # - { action: 'accept', protocol: 'tcp', dport: 22, interface: '{{ default_interface }}' }
+
+  # Rules for outgoing traffic
+  outbound:
+    default_policy: 'accept'
+    rules: []
+
+  # Rules for forwarded traffic
+  forwarded:
+    default_policy: 'drop'
+    rules: []

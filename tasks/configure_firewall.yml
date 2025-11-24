@@ -1,0 +1,80 @@
+# -----------------------------------------------------------------------------
+# Task file: roles/firewall/tasks/configure_firewall.yml
+#
+# Purpose:
+#   Render the firewall configuration file(s) that define the policies to apply,
+#   using the appropriate format for the selected backend.
+#
+# Description:
+#   1. Validates that the backend is supported by this role.
+#   2. Writes the configuration using the backend-specific template:
+#      - nftables  -> /etc/nftables.conf
+#      - iptables2 -> /etc/iptables/rules.v4 and /etc/iptables/rules.v6
+#   3. Notifies the nftables reload handler when that backend is in use.
+#
+# Requirements:
+#   - `firewall.backend` must be either `nftables` or `iptables2`.
+#   - Templates for each backend must exist in `roles/firewall/templates/`.
+#
+# Output:
+#   - Backend-specific firewall configuration files on disk.
+# -----------------------------------------------------------------------------
+
+# -----------------------------------------------------------------------------
+# Step 1 – Validate backend choice
+# -----------------------------------------------------------------------------
+- name: Validate firewall backend selection for configuration generation
+  ansible.builtin.fail:
+    msg: "Unsupported firewall backend '{{ firewall.backend }}'. Supported values: ['nftables', 'iptables2']"
+  when: firewall.backend not in ['nftables', 'iptables2']
+
+# -----------------------------------------------------------------------------
+# Step 2 – nftables configuration
+# -----------------------------------------------------------------------------
+- name: Render nftables firewall configuration
+  when: firewall.backend == 'nftables'
+  block:
+    - name: Write nftables config to /etc/nftables.conf
+      ansible.builtin.template:
+        src: nftables.conf.j2
+        dest: /etc/nftables.conf
+        owner: root
+        group: root
+        mode: '0644'
+      notify: Reload nftables ruleset
+
+# -----------------------------------------------------------------------------
+# Step 3 – iptables (iptables-persistent) configuration
+# -----------------------------------------------------------------------------
+- name: Render iptables firewall configuration
+  when: firewall.backend == 'iptables2'
+  block:
+    - name: Ensure iptables configuration directory exists
+      ansible.builtin.file:
+        path: /etc/iptables
+        state: directory
+        owner: root
+        group: root
+        mode: '0755'
+
+    - name: Write IPv4 iptables rules
+      ansible.builtin.template:
+        src: iptables.rules.j2
+        dest: /etc/iptables/rules.v4
+        owner: root
+        group: root
+        mode: '0644'
+      vars:
+        ip_version: 4
+      notify: Reload iptables ruleset
+
+    - name: Write IPv6 iptables rules
+      ansible.builtin.template:
+        src: iptables.rules.j2
+        dest: /etc/iptables/rules.v6
+        owner: root
+        group: root
+        mode: '0644'
+      vars:
+        ip_version: 6
+      notify: Reload iptables ruleset
