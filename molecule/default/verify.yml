@@ -1,0 +1,50 @@
+---
+- name: Verify traffic and role validations
+  hosts: client
+  become: true
+  vars:
+    firewall_host: firewall
+  tasks:
+    - name: Gather firewall facts
+      ansible.builtin.setup:
+      delegate_to: "{{ firewall_host }}"
+      delegate_facts: true
+
+    - name: Set firewall IP fact
+      ansible.builtin.set_fact:
+        firewall_ip: >-
+          {{
+            hostvars[firewall_host].ansible_host
+              | default(hostvars[firewall_host].ansible_facts.default_ipv4.address)
+              | default(hostvars[firewall_host].ansible_facts.eth0.ipv4.address)
+              | default(
+                  (
+                    hostvars[firewall_host].ansible_facts.interfaces
+                    | map('extract', hostvars[firewall_host].ansible_facts, 'ipv4')
+                    | select('defined')
+                    | map(attribute='address')
+                    | list
+                    | first
+                  )
+                )
+          }}
+
+    - name: Assert firewall IP was discovered
+      ansible.builtin.assert:
+        that:
+          - firewall_ip is defined
+          - firewall_ip | length > 0
+        fail_msg: "No IPv4 address discovered for firewall host."
+
+    - name: Wait for allowed HTTP port (8080) to respond
+      ansible.builtin.uri:
+        url: "http://{{ firewall_ip }}:8080"
+        status_code: 200
+        return_content: false
+        timeout: 10
+
+    - name: Ensure blocked HTTP port (8081) is not reachable
+      ansible.builtin.command: curl -fsS --max-time 5 http://{{ firewall_ip }}:8081
+      register: curl_block
+      failed_when: curl_block.rc == 0
+      changed_when: false

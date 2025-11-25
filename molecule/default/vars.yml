@@ -1,0 +1,11 @@
+---
+# Firewall Configuration overrides
+firewall:
+  enabled: true
+
+  inbound:
+    default_policy: 'drop'
+    rules: [
+      { action: 'accept', protocol: 'tcp', dport: 22   },
+      { action: 'accept', protocol: 'tcp', dport: 8080 }
+    ]

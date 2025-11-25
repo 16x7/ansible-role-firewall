@@ -1,0 +1,38 @@
+---
+- name: Converge (apply firewall role on firewall host)
+  hosts: firewall
+  become: true
+  vars_files:
+    - vars.yml
+
+  pre_tasks:
+    - name: Start allowed HTTP server on 8080
+      ansible.builtin.command: python3 -m http.server 8080 --directory /tmp
+      async: 300
+      poll: 0
+      environment:
+        PYTHONUNBUFFERED: "1"
+      tags:
+        - molecule-idempotence-notest
+
+    - name: Start blocked HTTP server on 8081
+      ansible.builtin.command: python3 -m http.server 8081 --directory /tmp
+      async: 300
+      poll: 0
+      environment:
+        PYTHONUNBUFFERED: "1"
+      tags:
+        - molecule-idempotence-notest
+
+  tasks:
+    - name: Wait for HTTP servers to start
+      ansible.builtin.wait_for:
+        port: "{{ item }}"
+        host: 127.0.0.1
+        timeout: 10
+      loop:
+        - 8080
+        - 8081
+
+  roles:
+    - role: ../../..  # Local path firewall role
