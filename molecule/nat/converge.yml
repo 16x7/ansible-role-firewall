@@ -1,20 +1,12 @@
 ---
-- name: Converge (apply firewall role on firewall host)
-  hosts: firewall
-  become: true
-  vars_files:
-    - ./vars.yml
-  roles:
-    - role: ../../..  # Local path firewall role
-
 - name: Start webserver backend
   hosts: webserver
   become: true
-  tasks:
+  pre_tasks:
     - name: Ensure route back to client network via firewall
       ansible.builtin.command: ip route replace 10.210.0.0/29 via 10.210.0.10 dev eth0
       changed_when: false
-
+  tasks:
     - name: Start HTTP server on 80
       ansible.builtin.command: python3 -m http.server 80 --directory /tmp
       async: 300
@@ -23,3 +15,19 @@
         PYTHONUNBUFFERED: "1"
       tags:
         - molecule-idempotence-notest
+
+    - name: Wait for HTTP servers to start
+      ansible.builtin.wait_for:
+        port: "{{ item }}"
+        host: 127.0.0.1
+        timeout: 10
+      loop:
+        - 80
+
+- name: Converge (apply firewall role on firewall host)
+  hosts: firewall
+  become: true
+  vars_files:
+    - vars.yml
+  roles:
+    - role: ../../..  # Local path firewall role
