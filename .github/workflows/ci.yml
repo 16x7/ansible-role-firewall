@@ -42,11 +42,43 @@ jobs:
         shell: bash
         run: pip3 install -r 16x7.firewall/molecule/requirements.txt
 
-      - name: Run Molecule tests.
+      - name: Install Ansible collections
+        shell: bash
+        working-directory: 16x7.firewall
+        run: ansible-galaxy collection install -r molecule/requirements.yml
+
+      - name: Run Molecule tests (default).
         working-directory: 16x7.firewall
         env:
           PY_COLORS: '1'
           ANSIBLE_FORCE_COLOR: '1'
           MOLECULE_DOCKER_IMG_DISTRO: ${{ matrix.docker_img_distro }}
         shell: bash
-        run: molecule test
+        run: |
+          set -euo pipefail
+          printf '\n=== Running Molecule tests with Docker image distro: %s ===\n\n' "$MOLECULE_DOCKER_IMG_DISTRO"
+
+          VARS_FILES=('nftables.yml' 'iptables2.yml')
+
+          for var_file in "${VARS_FILES[@]}"; do
+            printf '\n--- Testing with vars file: %s ---\n\n' "$var_file"
+            molecule test -s default -- -e @../../vars/$var_file
+          done
+
+      - name: Run Molecule tests (nat).
+        working-directory: 16x7.firewall
+        env:
+          PY_COLORS: '1'
+          ANSIBLE_FORCE_COLOR: '1'
+          MOLECULE_DOCKER_IMG_DISTRO: ${{ matrix.docker_img_distro }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          printf '\n=== Running Molecule tests with Docker image distro: %s ===\n\n' "$MOLECULE_DOCKER_IMG_DISTRO"
+
+          VARS_FILES=('nftables.yml' 'iptables2.yml')
+
+          for var_file in "${VARS_FILES[@]}"; do
+            printf '\n--- Testing with vars file: %s ---\n\n' "$var_file"
+            molecule test -s nat -- -e @../../vars/$var_file
+          done
