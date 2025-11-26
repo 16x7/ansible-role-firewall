@@ -1,0 +1,54 @@
+---
+dependency:
+  name: galaxy
+
+driver:
+  name: docker
+
+platforms:
+  - name: firewall
+    image: ${MOLECULE_DOCKER_IMG_DISTRO}
+    pre_build_image: true
+    privileged: true
+    command: sleep infinity
+    volumes:
+      - /sys/fs/cgroup:/sys/fs/cgroup:ro
+    networks:
+      - name: client_fw_net
+        ipv4_address: 172.31.0.1
+      - name: fw_web_net
+        ipv4_address: 172.31.0.5
+
+  - name: client
+    image: ${MOLECULE_DOCKER_IMG_DISTRO}
+    pre_build_image: true 
+    privileged: true
+    command: sleep infinity
+    volumes:
+      - /sys/fs/cgroup:/sys/fs/cgroup:ro
+    networks:
+      - name: client_fw_net
+        ipv4_address: 172.31.0.2
+
+  - name: webserver
+    image: ${MOLECULE_DOCKER_IMG_DISTRO}
+    pre_build_image: true 
+    privileged: true
+    command: sleep infinity
+    volumes:
+      - /sys/fs/cgroup:/sys/fs/cgroup:ro
+    networks:
+      - name: fw_web_net
+        ipv4_address: 172.31.0.6
+
+provisioner:
+  name: ansible
+  playbooks:
+    create: create.yml
+    destroy: destroy.yml
+    prepare: prepare.yml
+    converge: converge.yml
+    verify: verify.yml
+
+verifier:
+  name: ansible

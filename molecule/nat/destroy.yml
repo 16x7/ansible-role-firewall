@@ -1,0 +1,23 @@
+---
+- name: Destroy instances and networks
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  tasks:
+    - name: Remove containers
+      community.docker.docker_container:
+        name: "{{ item }}"
+        state: absent
+        force_kill: true
+      loop:
+        - firewall
+        - client
+        - webserver
+
+    - name: Remove networks
+      community.docker.docker_network:
+        name: "{{ item }}"
+        state: absent
+      loop:
+        - client_fw_net
+        - fw_web_net

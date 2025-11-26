@@ -1,0 +1,32 @@
+---
+firewall:
+  enabled: true
+
+  inbound:
+    default_policy: drop
+    rules:
+      - { action: accept, protocol: tcp, dport: 22 }
+      - { action: accept, protocol: tcp, dport: 8080 }
+
+  outbound:
+    default_policy: accept
+    rules: []
+
+  forwarded:
+    default_policy: drop
+    rules:
+      - action: accept
+        protocol: tcp
+        dport: 80
+        interface: eth0
+        out_interface: eth1
+        destination: 10.210.0.11
+
+  nat:
+    prerouting:
+      - interface: eth0
+        protocol: tcp
+        dport: 8080
+        match_dest: 10.210.0.2
+        to: 10.210.0.11:80
+    postrouting: []

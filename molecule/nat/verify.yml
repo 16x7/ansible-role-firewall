@@ -1,0 +1,17 @@
+---
+- name: Verify traffic and role validations
+  hosts: client
+  become: true
+  tasks:
+    - name: Verify NAT reaches backend via firewall
+      ansible.builtin.uri:
+        url: "http://10.210.0.2:8080"
+        status_code: 200
+        return_content: false
+        timeout: 10
+
+    - name: ICMP from client to webserver should be blocked
+      ansible.builtin.command: ping -c4 -W1 10.210.0.11
+      register: ping_result
+      changed_when: false
+      failed_when: ping_result.rc == 0

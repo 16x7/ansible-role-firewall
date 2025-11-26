@@ -1,0 +1,25 @@
+---
+- name: Prepare
+  hosts: all
+  gather_facts: false
+  vars:
+    ansible_python_interpreter: /usr/bin/python3
+    common_packages:
+      - sudo
+      - python3
+      - python3-apt
+      - iproute2
+      - procps
+      - curl
+  tasks:
+    - name: Bootstrap base packages for Ansible
+      raw: |
+        set -e
+        export DEBIAN_FRONTEND=noninteractive
+        apt-get update -y
+        apt-get install -y {{ common_packages | join(' ') }}
+      changed_when: false
+
+    - name: Re-run setup now that Python is present
+      ansible.builtin.setup:
+      become: false

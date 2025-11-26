@@ -1,0 +1,89 @@
+---
+- name: Create networks and instances
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    docker_image: "{{ lookup('env', 'MOLECULE_DOCKER_IMG_DISTRO') }}"
+  tasks:
+    - name: Ensure old containers are removed
+      community.docker.docker_container:
+        name: "{{ item }}"
+        state: absent
+        force_kill: true
+      loop:
+        - firewall
+        - client
+        - webserver
+
+    - name: Ensure old networks are absent
+      community.docker.docker_network:
+        name: "{{ item }}"
+        state: absent
+      loop:
+        - client_fw_net
+        - fw_web_net
+
+    - name: Ensure client-fw network exists
+      community.docker.docker_network:
+        name: client_fw_net
+        ipam_config:
+          - subnet: 10.210.0.0/29
+
+    - name: Ensure fw-web network exists
+      community.docker.docker_network:
+        name: fw_web_net
+        ipam_config:
+          - subnet: 10.210.0.8/29
+
+    - name: Start firewall
+      community.docker.docker_container:
+        name: firewall
+        image: "{{ docker_image }}"
+        command: sleep infinity
+        privileged: true
+        volumes:
+          - /sys/fs/cgroup:/sys/fs/cgroup:ro
+        networks:
+          - name: client_fw_net
+            ipv4_address: 10.210.0.2
+          - name: fw_web_net
+            ipv4_address: 10.210.0.10
+        state: started
+
+    - name: Start client
+      community.docker.docker_container:
+        name: client
+        image: "{{ docker_image }}"
+        command: sleep infinity
+        privileged: true
+        volumes:
+          - /sys/fs/cgroup:/sys/fs/cgroup:ro
+        networks:
+          - name: client_fw_net
+            ipv4_address: 10.210.0.3
+        state: started
+
+    - name: Start webserver
+      community.docker.docker_container:
+        name: webserver
+        image: "{{ docker_image }}"
+        command: sleep infinity
+        privileged: true
+        volumes:
+          - /sys/fs/cgroup:/sys/fs/cgroup:ro
+        networks:
+          - name: fw_web_net
+            ipv4_address: 10.210.0.11
+        state: started
+
+    - name: Add hosts to Molecule inventory
+      ansible.builtin.add_host:
+        name: "{{ item.name }}"
+        groups: "{{ item.groups }}"
+        ansible_connection: docker
+        ansible_python_interpreter: /usr/bin/python3
+      loop:
+        - { name: firewall, groups: ['firewall'] }
+        - { name: client, groups: ['client'] }
+        - { name: webserver, groups: ['webserver'] }
