@@ -17,14 +17,22 @@
 # -----------------------------------------------------------------------------
 
 # -----------------------------------------------------------------------------
-# Step 1 – Ensure nftables service is active
+# Step 0 – Collect service facts
+# -----------------------------------------------------------------------------
+- name: Collect service facts for backend activation
+  ansible.builtin.service_facts:
+
+# -----------------------------------------------------------------------------
+# Step 1 – Ensure nftables service is active (only if present)
 # -----------------------------------------------------------------------------
 - name: Ensure nftables service is enabled and running
   ansible.builtin.systemd:
     name: nftables
     state: started
     enabled: yes
-  when: firewall.backend == 'nftables'
+  when:
+    - firewall.backend == 'nftables'
+    - ansible_facts.services['nftables.service'] is defined
 
 # -----------------------------------------------------------------------------
 # Step 2 – Ensure iptables-persistent service is active
@@ -34,4 +42,6 @@
     name: netfilter-persistent
     state: started
     enabled: yes
-  when: firewall.backend == 'iptables2'
+  when:
+    - firewall.backend == 'iptables2'
+    - ansible_facts.services['netfilter-persistent.service'] is defined

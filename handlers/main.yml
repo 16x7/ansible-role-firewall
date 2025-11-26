@@ -8,17 +8,11 @@
 
 # -----------------------------------------------------------------------------
 # Reload nftables configuration from /etc/nftables.conf
-# This handler:
-#   - Validates the configuration first using `nft -c -f`
-#   - Then reloads the active ruleset via systemd
+# This handler applies the rendered ruleset directly with `nft -f` to avoid
+# relying on systemd reload semantics that can vary inside containers.
 # -----------------------------------------------------------------------------
 - name: Reload nftables ruleset
-  ansible.builtin.shell: |
-    set -e
-    nft -c -f /etc/nftables.conf
-    systemctl reload nftables
-  args:
-    executable: /bin/bash
+  ansible.builtin.command: nft -f /etc/nftables.conf
   register: nft_reload
   changed_when: nft_reload.rc == 0
 

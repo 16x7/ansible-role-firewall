@@ -34,6 +34,7 @@
 # Allow established/related and loopback traffic
 -A INPUT -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
 -A INPUT -i lo -j ACCEPT
+-A FORWARD -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
 
 # Inbound rules
 {% for rule in firewall.inbound.rules | default([]) %}
@@ -51,3 +52,19 @@
 {% endfor %}
 
 COMMIT
+
+{% set nat_rules = firewall.nat.prerouting | default([]) %}
+{% if ip_version == 4 and nat_rules|length > 0 %}
+*nat
+:PREROUTING ACCEPT [0:0]
+:INPUT ACCEPT [0:0]
+:OUTPUT ACCEPT [0:0]
+:POSTROUTING ACCEPT [0:0]
+
+{% for rule in nat_rules %}
+{% set dnat_dest = rule.match_dest | default(rule.destination) %}
+-A PREROUTING{% if rule.interface is defined %} -i {{ rule.interface }}{% endif %}{% if rule.protocol is defined %} -p {{ rule.protocol }}{% endif %}{% if dnat_dest is defined %} -d {{ dnat_dest }}{% endif %}{% if rule.dport is defined %} --dport {{ rule.dport }}{% endif %}{% if rule.sport is defined %} --sport {{ rule.sport }}{% endif %} -j DNAT --to-destination {{ rule.to }}
+{% endfor %}
+
+COMMIT
+{% endif %}

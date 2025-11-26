@@ -9,20 +9,21 @@
 #   - Inserts baseline rules for established/related traffic and loopback.
 #   - Iterates over `firewall.*.rules` to emit custom rules.
 #   - Supports optional rule keys: action, protocol, dport, sport, interface,
-#     out_interface, source, destination, ctstate, extra, family (ip/ip6).
+#     out_interface, source, destination, ctstate, extra, family (ip/ip6),
+#     and `dnat_to` for NAT.
 #
 # Output:
-#   - Complete nftables config for table `inet firewall`.
+#   - Complete nftables config for table `inet firewall` and `ip nat` (if DNAT).
 # -----------------------------------------------------------------------------
 
 {% macro format_rule(rule) -%}
 {%- set parts = [] -%}
 {%- set family = rule.family | default('ip') -%}
-{%- if rule.interface is defined %}{% set _ = parts.append('iifname \"' ~ rule.interface ~ '\"') %}{% endif %}
-{%- if rule.out_interface is defined %}{% set _ = parts.append('oifname \"' ~ rule.out_interface ~ '\"') %}{% endif %}
-{%- if rule.protocol is defined %}{% set _ = parts.append(rule.protocol) %}{% endif %}
+{%- if rule.interface is defined %}{% set _ = parts.append('iifname "' ~ rule.interface ~ '"') %}{% endif %}
+{%- if rule.out_interface is defined %}{% set _ = parts.append('oifname "' ~ rule.out_interface ~ '"') %}{% endif %}
 {%- if rule.source is defined %}{% set _ = parts.append(family ~ ' saddr ' ~ rule.source) %}{% endif %}
 {%- if rule.destination is defined %}{% set _ = parts.append(family ~ ' daddr ' ~ rule.destination) %}{% endif %}
+{%- if rule.protocol is defined %}{% set _ = parts.append(rule.protocol) %}{% endif %}
 {%- if rule.sport is defined %}{% set _ = parts.append('sport ' ~ rule.sport) %}{% endif %}
 {%- if rule.dport is defined %}{% set _ = parts.append('dport ' ~ rule.dport) %}{% endif %}
 {%- if rule.ctstate is defined %}{% set _ = parts.append('ct state {' ~ (rule.ctstate | lower | replace(' ', '')) ~ '}') %}{% endif %}
@@ -37,7 +38,7 @@
 
 table inet firewall {
   chain input {
-    type filter hook input priority 0;
+    type filter hook input priority -100;
     policy {{ inbound_policy }};
 
     # Baseline allows
@@ -51,8 +52,10 @@ table inet firewall {
   }
 
   chain forward {
-    type filter hook forward priority 0;
+    type filter hook forward priority -100;
     policy {{ forward_policy }};
+
+    ct state established,related accept
 
     {% for rule in firewall.forwarded.rules | default([]) %}
     {{ format_rule(rule) }}
@@ -60,7 +63,7 @@ table inet firewall {
   }
 
   chain output {
-    type filter hook output priority 0;
+    type filter hook output priority -100;
     policy {{ outbound_policy }};
 
     {% for rule in firewall.outbound.rules | default([]) %}
@@ -68,3 +71,25 @@ table inet firewall {
     {% endfor %}
   }
 }
+
+{% set nat_prerouting = firewall.nat.prerouting | default([]) %}
+{% if nat_prerouting %}
+table ip nat {
+  chain prerouting {
+    type nat hook prerouting priority -100;
+    policy accept;
+    {% for rule in nat_prerouting %}
+    {%- set parts = [] -%}
+    {%- if rule.interface is defined %}{% set _ = parts.append('iifname "' ~ rule.interface ~ '"') %}{% endif %}
+    {%- set dnat_dest = rule.match_dest | default(rule.destination) -%}
+    {%- if dnat_dest is defined %}{% set _ = parts.append('ip daddr ' ~ dnat_dest) %}{% endif %}
+    {%- if rule.protocol is defined %}{% set _ = parts.append(rule.protocol) %}{% endif %}
+    {%- if rule.dport is defined %}{% set _ = parts.append('dport ' ~ rule.dport) %}{% endif %}
+    {%- if rule.sport is defined %}{% set _ = parts.append('sport ' ~ rule.sport) %}{% endif %}
+    {%- if rule.extra is defined %}{% set _ = parts.append(rule.extra) %}{% endif %}
+    {%- if rule.to is defined %}{% set _ = parts.append('dnat to ' ~ rule.to) %}{% endif %}
+    {{ parts | join(' ') }}
+    {% endfor %}
+  }
+}
+{% endif %}

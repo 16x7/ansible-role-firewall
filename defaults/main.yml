@@ -2,15 +2,15 @@
 # Default variables for firewall role
 
 # Define the default network interface dynamically
-default_interface: "{{ ansible_default_ipv4.interface }}"
+default_interface: "{{ ansible_facts['default_ipv4']['interface'] }}"
 
-# Firewall Configuration
-firewall:
-  # Enable or disable the firewall
+# Define the default firewall backend
+firewall_backend: nftables
+
+# Firewall configuration defaults (base map)
+firewall_defaults:
   enabled: true
-  # Specify the firewall backend to use iptables2 or nftables
-  backend: nftables
-  # Packages required for each supported backend
+  backend: "{{ firewall_backend }}"
   backend_packages:
     nftables:
       - nftables
@@ -18,19 +18,22 @@ firewall:
       - iptables
       - iptables-persistent
 
-  # Firewall rules
-  # Rules for incoming traffic
   inbound:
     default_policy: 'drop'
     rules: []
-     # - { action: 'accept', protocol: 'tcp', dport: 22, interface: '{{ default_interface }}' }
+     # { action: 'accept', protocol: 'tcp', dport: 22, interface: '{{ default_interface }}' }
 
-  # Rules for outgoing traffic
   outbound:
     default_policy: 'accept'
     rules: []
 
-  # Rules for forwarded traffic
   forwarded:
     default_policy: 'drop'
     rules: []
+
+  nat:
+    prerouting: []
+    postrouting: []
+
+# User-provided firewall overrides (merged with firewall_defaults in tasks/main.yml)
+firewall: {}

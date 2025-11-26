@@ -29,6 +29,18 @@
   when: firewall.backend not in ['nftables', 'iptables2']
 
 # -----------------------------------------------------------------------------
+# Step 1.5 – Ensure IPv4 forwarding is enabled when forwarding rules are present
+# -----------------------------------------------------------------------------
+- name: Ensure IPv4 forwarding is enabled
+  ansible.builtin.sysctl:
+    name: net.ipv4.ip_forward
+    value: '1'
+    state: present
+    sysctl_set: true
+    reload: true
+  when: (firewall.forwarded.rules | default([])) | length > 0
+
+# -----------------------------------------------------------------------------
 # Step 2 – nftables configuration
 # -----------------------------------------------------------------------------
 - name: Render nftables firewall configuration
@@ -42,6 +54,12 @@
         group: root
         mode: '0644'
       notify: Reload nftables ruleset
+    - name: Apply nftables ruleset
+      ansible.builtin.command: nft -f /etc/nftables.conf
+      changed_when: false
+    - name: Ensure nftables table is present and active
+      ansible.builtin.command: nft list table inet firewall
+      changed_when: false
 
 # -----------------------------------------------------------------------------
 # Step 3 – iptables (iptables-persistent) configuration
@@ -78,3 +96,10 @@
       vars:
         ip_version: 6
       notify: Reload iptables ruleset
+    - name: Apply IPv4 ruleset immediately
+      ansible.builtin.command: iptables-restore /etc/iptables/rules.v4
+      changed_when: false
+    - name: Apply IPv6 ruleset immediately
+      ansible.builtin.command: ip6tables-restore /etc/iptables/rules.v6
+      changed_when: false
+      failed_when: false

@@ -18,21 +18,31 @@
 # -----------------------------------------------------------------------------
 
 # -----------------------------------------------------------------------------
-# Step 1 – Disable nftables when iptables2 is selected
+# Step 0 – Collect service facts to gate conditional disables
+# -----------------------------------------------------------------------------
+- name: Collect service facts for firewall backend management
+  ansible.builtin.service_facts:
+
+# -----------------------------------------------------------------------------
+# Step 1 – Disable nftables when iptables2 is selected (only if present)
 # -----------------------------------------------------------------------------
 - name: Disable nftables service when backend is iptables2
   ansible.builtin.systemd:
     name: nftables
     state: stopped
     enabled: no
-  when: firewall.backend == 'iptables2'
+  when:
+    - firewall.backend == 'iptables2'
+    - ansible_facts.services['nftables.service'] is defined
 
 # -----------------------------------------------------------------------------
-# Step 2 – Disable iptables-persistent when nftables is selected
+# Step 2 – Disable iptables-persistent when nftables is selected (only if present)
 # -----------------------------------------------------------------------------
 - name: Disable netfilter-persistent (iptables) when backend is nftables
   ansible.builtin.systemd:
     name: netfilter-persistent
     state: stopped
     enabled: no
-  when: firewall.backend == 'nftables'
+  when:
+    - firewall.backend == 'nftables'
+    - ansible_facts.services['netfilter-persistent.service'] is defined

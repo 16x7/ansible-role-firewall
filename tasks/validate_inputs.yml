@@ -1,0 +1,173 @@
+# -----------------------------------------------------------------------------
+# Task file: roles/firewall/tasks/validate_inputs.yml
+#
+# Purpose:
+#   Validate the user-provided variables before making any changes, failing
+#   early with clear messages when the shape or values are unsupported.
+#
+# Checks performed:
+#   - `firewall` is a mapping and `enabled` is boolean.
+#   - `backend` is one of the supported backends and exists in
+#     `backend_packages`.
+#   - `default_policy` values for inbound/outbound/forwarded are valid.
+#   - Rule lists are lists, each rule is a mapping, uses only supported keys,
+#     and declares an allowed address family when provided.
+# -----------------------------------------------------------------------------
+
+- name: Validate top-level firewall settings
+  ansible.builtin.assert:
+    that:
+      - firewall is mapping
+      - firewall.enabled is boolean
+      - firewall.backend is string
+      - firewall.backend in allowed_backends
+      - firewall.backend_packages is mapping
+      - firewall.backend in firewall.backend_packages
+    fail_msg: >-
+      Invalid firewall settings. Ensure `firewall` is a mapping, `enabled` is
+      boolean, backend is one of {{ allowed_backends }}, and backend packages
+      include an entry for the selected backend.
+  vars:
+    allowed_backends:
+      - nftables
+      - iptables2
+
+- name: Validate policies and rule list types
+  ansible.builtin.assert:
+    that:
+      - firewall[item] is mapping
+      - (firewall[item].default_policy | default('')) | lower in allowed_policies
+      - (firewall[item].rules | default([])) | type_debug == 'list'
+    fail_msg: >-
+      firewall.{{ item }} must define a default_policy in {{ allowed_policies }}
+      and rules must be provided as a list (can be empty).
+  loop:
+    - inbound
+    - outbound
+    - forwarded
+  loop_control:
+    label: "{{ item }}"
+  vars:
+    allowed_policies:
+      - accept
+      - drop
+      - reject
+
+- name: Validate inbound rules
+  vars:
+    allowed_rule_keys:
+      - action
+      - protocol
+      - dport
+      - sport
+      - interface
+      - out_interface
+      - source
+      - destination
+      - ctstate
+      - extra
+      - family
+      - dnat_to
+      - dnat_match
+    allowed_families:
+      - ip
+      - ip6
+  ansible.builtin.assert:
+    that:
+      - rule | type_debug == 'dict'
+      - (rule.keys() | list | difference(allowed_rule_keys)) | length == 0
+      - (rule.family | default('ip')) | lower in allowed_families
+    fail_msg: >-
+      Rules must be dictionaries using only supported keys
+      {{ allowed_rule_keys }} and an optional family of {{ allowed_families }}.
+  loop: "{{ firewall.inbound.rules | default([]) }}"
+  loop_control:
+    loop_var: rule
+    label: "inbound rule -> {{ rule | to_nice_json }}"
+
+- name: Validate outbound rules
+  vars:
+    allowed_rule_keys:
+      - action
+      - protocol
+      - dport
+      - sport
+      - interface
+      - out_interface
+      - source
+      - destination
+      - ctstate
+      - extra
+      - family
+    allowed_families:
+      - ip
+      - ip6
+  ansible.builtin.assert:
+    that:
+      - rule | type_debug == 'dict'
+      - (rule.keys() | list | difference(allowed_rule_keys)) | length == 0
+      - (rule.family | default('ip')) | lower in allowed_families
+    fail_msg: >-
+      Rules must be dictionaries using only supported keys
+      {{ allowed_rule_keys }} and an optional family of {{ allowed_families }}.
+  loop: "{{ firewall.outbound.rules | default([]) }}"
+  loop_control:
+    loop_var: rule
+    label: "outbound rule -> {{ rule | to_nice_json }}"
+
+- name: Validate forwarded rules
+  vars:
+    allowed_rule_keys:
+      - action
+      - protocol
+      - dport
+      - sport
+      - interface
+      - out_interface
+      - source
+      - destination
+      - ctstate
+      - extra
+      - family
+      - dnat_to
+      - dnat_match
+    allowed_families:
+      - ip
+      - ip6
+  ansible.builtin.assert:
+    that:
+      - rule | type_debug == 'dict'
+      - (rule.keys() | list | difference(allowed_rule_keys)) | length == 0
+      - (rule.family | default('ip')) | lower in allowed_families
+    fail_msg: >-
+      Rules must be dictionaries using only supported keys
+      {{ allowed_rule_keys }} and an optional family of {{ allowed_families }}.
+  loop: "{{ firewall.forwarded.rules | default([]) }}"
+  loop_control:
+    loop_var: rule
+    label: "forwarded rule -> {{ rule | to_nice_json }}"
+
+- name: Validate NAT rules
+  vars:
+    allowed_nat_keys:
+      - interface
+      - out_interface
+      - protocol
+      - dport
+      - sport
+      - source
+      - destination
+      - to
+      - match_dest
+      - extra
+  ansible.builtin.assert:
+    that:
+      - rule | type_debug == 'dict'
+      - (rule.keys() | list | difference(allowed_nat_keys)) | length == 0
+    fail_msg: >-
+      NAT rules must be dictionaries using only supported keys
+      {{ allowed_nat_keys }}.
+  loop: "{{ (firewall.nat.prerouting | default([])) + (firewall.nat.postrouting | default([])) }}"
+  loop_control:
+    loop_var: rule
+    label: "nat rule -> {{ rule | to_nice_json }}"

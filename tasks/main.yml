@@ -1,3 +1,10 @@
+- name: Merge firewall overrides with defaults
+  ansible.builtin.set_fact:
+    firewall: "{{ firewall_defaults | default({}) | combine(firewall | default({}), recursive=True) }}"
+
+- name: Validate firewall inputs
+  import_tasks: validate_inputs.yml
+
 - name: Install firewall backend dependencies
   import_tasks: install_dependencies.yml
 
